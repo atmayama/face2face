@@ -1,4 +1,5 @@
 <script lang="ts">
+  export const prerender = false; // Disable pre-rendering for dynamic routes
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { peer, peerId, initializePeer } from '$lib/peer';
