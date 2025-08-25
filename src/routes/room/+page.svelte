@@ -109,7 +109,7 @@
 			{#if localStream}
 				<div>
 					<h2 class="text-xl font-semibold">Your Video</h2>
-					<video use:videoStream={localStream} autoplay class="w-full h-auto bg-black"></video>
+					<video use:videoStream={localStream} autoplay muted class="w-full h-auto bg-black"></video>
 				</div>
 			{/if}
 		{#if isMobile}
