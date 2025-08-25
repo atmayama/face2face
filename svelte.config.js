@@ -11,9 +11,9 @@ const config = {
 		adapter: adapter({
 			// default options are shown. On some platforms
 			// these options are set automatically — see https://kit.svelte.dev/docs/adapter-static#options
-			pages: 'build',
-			assets: 'build',
-			fallback: '200.html',
+			pages: 'docs',
+			assets: 'docs',
+			fallback: 'index.html',
 			precompress: false,
 			strict: true
 		}),
