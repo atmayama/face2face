@@ -6,13 +6,13 @@
 
 	function createRoom() {
 		if (roomId) {
-			goto(`/room?roomId=${roomId}&action=create`);
+			goto(`./room?roomId=${roomId}&action=create`);
 		}
 	}
 
 	function joinRoom() {
 		if (roomId) {
-			goto(`/room?roomId=${roomId}&action=join`);
+			goto(`./room?roomId=${roomId}&action=join`);
 		}
 	}
 </script>
