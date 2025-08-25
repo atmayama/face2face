@@ -8,7 +8,7 @@ export const isConnected = writable(false);
 export function initializePeer(id?: string): Promise<Peer> {
 	return new Promise((resolve, reject) => {
 		import('peerjs').then(({ default: PeerJS }) => {
-			const newPeer: Peer = new PeerJS(id, {});
+			const newPeer: Peer = new PeerJS(id || '', {});
 
 			newPeer.on('open', (id) => {
 				console.log('PeerJS open:', id);

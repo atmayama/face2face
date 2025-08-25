@@ -15,7 +15,7 @@ export default defineConfig({
 		})
 	],
 	server: {
-		https: true
+		
 	},
 	test: {
 		expect: { requireAssertions: true },

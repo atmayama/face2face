@@ -13,7 +13,7 @@ const config = {
 			// these options are set automatically — see https://kit.svelte.dev/docs/adapter-static#options
 			pages: 'build',
 			assets: 'build',
-			fallback: undefined,
+			fallback: '200.html',
 			precompress: false,
 			strict: true
 		}),

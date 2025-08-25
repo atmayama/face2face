@@ -1,17 +1,18 @@
 <script lang="ts">
+	export const prerender = true;
 	import { goto } from '$app/navigation';
 
 	let roomId = '';
 
 	function createRoom() {
 		if (roomId) {
-			goto(`/room/${roomId}?action=create`);
+			goto(`/room?roomId=${roomId}&action=create`);
 		}
 	}
 
 	function joinRoom() {
 		if (roomId) {
-			goto(`/room/${roomId}?action=join`);
+			goto(`/room?roomId=${roomId}&action=join`);
 		}
 	}
 </script>
