@@ -103,7 +103,7 @@ onMount(async () => {
 	  <div class="flex flex-row flex-wrap justify-center gap-1 w-full">
     {#each [...remoteStreams.entries()] as [peerId, stream]}
       {#if stream}
-          <video use:videoStream={stream} autoplay class="border-2 border-white rounded-xl" style="width: calc(100%/{Math.min(remoteStreams.size,2)} - 1rem)">
+          <video use:videoStream={stream} autoplay class="border-2 border-white rounded-xl max-h-screen" style="width: calc(100%/{Math.min(remoteStreams.size,2)} - 1rem)">
 			<track kind="captions"/>
 		</video>
 		{/if}
