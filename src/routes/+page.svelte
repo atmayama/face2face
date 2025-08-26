@@ -19,7 +19,7 @@
 
 <div class="flex items-center justify-center min-h-screen bg-gray-100">
 	<div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-		<h1 class="text-3xl font-bold text-center text-gray-900">Split It</h1>
+		<h1 class="text-3xl font-bold text-center text-gray-900">Face 2 Face</h1>
 		<div class="space-y-4">
 			<div class="flex items-center space-x-2">
 				<input
