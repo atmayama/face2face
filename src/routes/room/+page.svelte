@@ -4,6 +4,10 @@
 	import { peer, peerId, initializePeer } from '$lib/peer';
 	import type { MediaConnection } from 'peerjs';
 	import flipcameraicon from '$lib/assets/icons/flip-camera.svg';
+	import cameraOff from '$lib/assets/icons/camera-off.svg';
+	import enlarge from '$lib/assets/icons/enlarge.svg';
+	import undo from '$lib/assets/icons/undo.svg';
+	import videoOff from '$lib/assets/icons/video-off.svg';
 
 	const action = $page.url.searchParams.get('action');
 	const roomId = $page.url.searchParams.get('roomId') ?? '';
@@ -12,7 +16,6 @@
 	let remoteStreams = new Map<string, MediaStream>();
 	let connections = new Map<string, MediaConnection>();
 	let currentFacingMode: 'user' | 'environment' = 'user';
-	let isMobile: boolean = false;
 
 	function videoStream(videoElement: HTMLVideoElement, stream: MediaStream) {
 		videoElement.srcObject = stream;
@@ -65,8 +68,6 @@
 	}
 
 	onMount(async () => {
-		isMobile = window.innerWidth <= 768;
-
 		if (action === 'create') {
 			await initializePeer($page.url.searchParams.get('roomId'));
 		} else {
@@ -104,7 +105,7 @@
 	});
 </script>
 
-<div class="relative h-screen w-screen">
+<div class="relative h-screen w-screen bg-gray-100 dark:bg-gray-600">
 	<!-- Remote Videos -->
 	<div class="flex h-full w-full flex-wrap gap-2">
 		<div class="flex w-full flex-row flex-wrap justify-center gap-1">
@@ -113,7 +114,7 @@
 					<video
 						use:videoStream={stream}
 						autoplay
-						class="max-h-screen rounded-xl border-2 border-white"
+						class="max-h-screen rounded-xl border-2 border-gray-300 dark:border-gray-700"
 						style="width: calc(100%/{Math.min(remoteStreams.size, 2)} - 1rem)"
 					>
 						<track kind="captions" />
@@ -125,7 +126,9 @@
 
 	<!-- Self Video -->
 	{#if localStream}
-		<div class="fixed bottom-4 left-4 h-1/4 w-1/4 overflow-hidden rounded-md border-2 border-white">
+		<div
+			class="fixed bottom-4 left-4 h-1/4 w-1/4 overflow-hidden rounded-md border-2 border-gray-300 dark:border-gray-700"
+		>
 			<video
 				use:videoStream={localStream}
 				autoplay
@@ -136,21 +139,22 @@
 	{/if}
 
 	<!-- Menu Bar -->
-	<div class="fixed bottom-4 left-1/2 z-10 -translate-x-1/2">
-		<div class="bg-opacity-75 flex space-x-4 rounded-full bg-gray-800 p-2 shadow-lg">
-			<!-- Add menu items here -->
-			<button class="rounded-full bg-red-500 p-2 text-white"> Leave </button>
-			<!-- Add more buttons as needed -->
+	<div class="fixed bottom-16 left-1/2 z-10 -translate-x-1/2">
+		<div
+			class="bg-opacity-75 flex space-x-4 rounded-full bg-gray-200 p-2 shadow-lg dark:bg-gray-800"
+		>
+			<button class="rounded-full bg-gray-500 p-2 text-white">
+				<img src={cameraOff} alt="camera off" class="w-5 dark:invert" />
+			</button>
+			<button class="rounded-full bg-gray-500 p-2 text-white">
+				<img src={enlarge} alt="enlarge" class="w-5 dark:invert" />
+			</button>
+			<button class="rounded-full bg-gray-500 p-2 text-white">
+				<img src={undo} alt="undo" class="w-5 dark:invert" />
+			</button>
+			<button class="rounded-full bg-gray-500 p-2 text-white" on:click={toggleCamera}>
+				<img src={flipcameraicon} alt="Flip Camera" class="w-5 dark:invert" />
+			</button>
 		</div>
 	</div>
-	<!-- Switch Camera Button -->
-	{#if isMobile}
-		<button
-			on:click={toggleCamera}
-			class="absolute right-4 bottom-4 rounded-full bg-red-300 p-4 text-white shadow-lg"
-			aria-label="Toggle Camera"
-		>
-			<img src={flipcameraicon} alt="Flip Camera" class="w-5" />
-		</button>
-	{/if}
 </div>

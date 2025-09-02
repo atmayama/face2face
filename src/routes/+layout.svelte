@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.ico';
 	import lightIcon from '$lib/assets/icons/light.svg';
@@ -8,6 +9,23 @@
 
 	let dark = $state(false);
 
+	onMount(() => {
+		if (typeof window !== 'undefined') {
+			const savedTheme = localStorage.getItem('theme');
+			if (savedTheme) {
+				dark = savedTheme === 'dark';
+			} else {
+				dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			}
+		}
+	});
+
+	$effect(() => {
+		if (typeof window !== 'undefined') {
+			document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+			localStorage.setItem('theme', dark ? 'dark' : 'light');
+		}
+	});
 	function toggleTheme() {
 		dark = !dark;
 	}
@@ -29,7 +47,7 @@
 				>
 					<img
 						src={dark ? lightIcon : darkIcon}
-						class="h-5 w-5 delay-1000 duration-500 ease-in-out dark:invert"
+						class="h-5 w-5 duration-500 ease-in-out dark:invert"
 						alt="Toggle"
 					/>
 				</button>
