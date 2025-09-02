@@ -14,9 +14,6 @@ export default defineConfig({
 			outdir: './src/lib/paraglide'
 		})
 	],
-	server: {
-		
-	},
 	test: {
 		expect: { requireAssertions: true },
 		projects: [
