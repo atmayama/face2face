@@ -7,27 +7,16 @@
 	import cameraOff from '$lib/assets/icons/camera-off.svg';
 	import enlarge from '$lib/assets/icons/enlarge.svg';
 	import undo from '$lib/assets/icons/undo.svg';
-	import videoOff from '$lib/assets/icons/video-off.svg';
+	import { goto } from '$app/navigation';
 
 	const action = $page.url.searchParams.get('action');
 	const roomId = $page.url.searchParams.get('roomId') ?? '';
 
-	let localStream: MediaStream;
-	let remoteStreams = new Map<string, MediaStream>();
+	let localStream: MediaStream | undefined = $state();
+	let remoteStreams = $state(new Map<string, MediaStream>());
 	let connections = new Map<string, MediaConnection>();
 	let currentFacingMode: 'user' | 'environment' = 'user';
-
-	function videoStream(videoElement: HTMLVideoElement, stream: MediaStream) {
-		videoElement.srcObject = stream;
-		return {
-			update(newStream: MediaStream) {
-				videoElement.srcObject = newStream;
-			},
-			destroy() {
-				// Clean up if necessary
-			}
-		};
-	}
+	let isFullScreen = $state(false);
 
 	async function getMediaStream(facingMode: 'user' | 'environment') {
 		try {
@@ -50,7 +39,7 @@
 
 		// Update peers with the new camera stream
 		for (const connection of connections.values()) {
-			const videoTrack = localStream.getVideoTracks()[0];
+			const videoTrack = localStream!.getVideoTracks()[0];
 			if (videoTrack) {
 				const sender = connection.peerConnection
 					.getSenders()
@@ -67,9 +56,29 @@
 		}
 	}
 
+	function toggleFullScreen() {
+		if (!document.fullscreenElement) {
+			document.documentElement.requestFullscreen();
+			isFullScreen = true;
+		} else {
+			if (document.exitFullscreen) {
+				document.exitFullscreen();
+				isFullScreen = false;
+			}
+		}
+	}
+
+	function exitRoom() {
+		for (const connection of connections.values()) {
+			connection.close();
+		}
+		localStream!.getTracks().forEach((track) => track.stop());
+		goto('/');
+	}
+
 	onMount(async () => {
 		if (action === 'create') {
-			await initializePeer($page.url.searchParams.get('roomId'));
+			await initializePeer(roomId);
 		} else {
 			await initializePeer();
 		}
@@ -80,42 +89,52 @@
 		const currentPeer = $peer;
 		if (currentPeer) {
 			currentPeer.on('call', (call) => {
+				console.log(`Call from ${call.peer}`);
 				call.answer(localStream);
 				call.on('stream', (userVideoStream) => {
+					console.log(`stream from ${call.peer}`);
 					remoteStreams.set(call.peer, userVideoStream);
-					remoteStreams = remoteStreams;
+					remoteStreams = new Map(remoteStreams);
 				});
 				connections.set(call.peer, call);
 			});
 
-			if (
-				$page.url.searchParams.get('roomId') &&
-				currentPeer.id !== $page.url.searchParams.get('roomId')
-			) {
-				const call = currentPeer.call(roomId, localStream);
+			if (roomId && currentPeer.id !== roomId) {
+				console.log(`Calling ${roomId}`);
+				const call = currentPeer.call(roomId, localStream!);
 				if (call) {
 					call.on('stream', (userVideoStream) => {
-						remoteStreams.set(roomId, userVideoStream);
-						remoteStreams = remoteStreams;
+						console.log(`Response from ${roomId}`);
+						remoteStreams = remoteStreams.set(roomId, userVideoStream);
+						remoteStreams = new Map(remoteStreams);
 					});
 					connections.set(roomId, call);
 				}
 			}
 		}
+
+		document.addEventListener('fullscreenchange', (event) => {
+			if (!document.fullscreenElement) {
+				isFullScreen = false;
+			}
+		});
 	});
 </script>
 
 <div class="relative h-screen w-screen bg-gray-100 dark:bg-gray-600">
 	<!-- Remote Videos -->
-	<div class="flex h-full w-full flex-wrap gap-2">
-		<div class="flex w-full flex-row flex-wrap justify-center gap-1">
+	<div class="flex h-full w-full items-center justify-center">
+		<div class="flex flex-row flex-wrap items-center justify-center gap-5">
+			{#if remoteStreams.size == 0}
+				<span class="text-white">Welcome to Face2Face</span>
+			{/if}
+
 			{#each [...remoteStreams.entries()] as [peerId, stream]}
 				{#if stream}
 					<video
-						use:videoStream={stream}
+						srcObject={stream}
 						autoplay
-						class="max-h-screen rounded-xl border-2 border-gray-300 dark:border-gray-700"
-						style="width: calc(100%/{Math.min(remoteStreams.size, 2)} - 1rem)"
+						class="h-min rounded-xl border-2 border-gray-300 p-2 dark:border-gray-700"
 					>
 						<track kind="captions" />
 					</video>
@@ -129,11 +148,7 @@
 		<div
 			class="fixed bottom-4 left-4 h-1/4 w-1/4 overflow-hidden rounded-md border-2 border-gray-300 dark:border-gray-700"
 		>
-			<video
-				use:videoStream={localStream}
-				autoplay
-				muted
-				class="h-full w-full bg-black object-cover"
+			<video srcObject={localStream} autoplay muted class="h-full w-full bg-black object-cover"
 			></video>
 		</div>
 	{/if}
@@ -143,17 +158,25 @@
 		<div
 			class="bg-opacity-75 flex space-x-4 rounded-full bg-gray-200 p-2 shadow-lg dark:bg-gray-800"
 		>
-			<button class="rounded-full bg-gray-500 p-2 text-white">
+			<button class="rounded-full bg-gray-300 p-2 text-white dark:bg-gray-500">
 				<img src={cameraOff} alt="camera off" class="w-5 dark:invert" />
 			</button>
-			<button class="rounded-full bg-gray-500 p-2 text-white">
+			<button
+				class="rounded-full {isFullScreen
+					? 'bg-red-400'
+					: 'bg-gray-300 dark:bg-gray-500'} p-2 text-white"
+				on:click={toggleFullScreen}
+			>
 				<img src={enlarge} alt="enlarge" class="w-5 dark:invert" />
 			</button>
-			<button class="rounded-full bg-gray-500 p-2 text-white">
-				<img src={undo} alt="undo" class="w-5 dark:invert" />
-			</button>
-			<button class="rounded-full bg-gray-500 p-2 text-white" on:click={toggleCamera}>
+			<button
+				class="rounded-full bg-gray-300 p-2 text-white lg:hidden dark:bg-gray-500"
+				on:click={toggleCamera}
+			>
 				<img src={flipcameraicon} alt="Flip Camera" class="w-5 dark:invert" />
+			</button>
+			<button class="rounded-full bg-gray-300 p-2 text-white dark:bg-gray-500" on:click={exitRoom}>
+				<img src={undo} alt="Exit Room" class="w-5 dark:invert" />
 			</button>
 		</div>
 	</div>

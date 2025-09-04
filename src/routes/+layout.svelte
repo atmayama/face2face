@@ -37,7 +37,7 @@
 
 <div class={dark ? 'dark' : ''}>
 	<header class="fixed top-0 z-10 h-5 w-screen">
-		<div class="container mx-auto flex items-center justify-between px-6 py-4">
+		<div class="flex items-center justify-between px-6 py-4">
 			<div></div>
 			<div class="flex items-end space-x-4">
 				<button
