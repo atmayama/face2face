@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { peer, peerId, initializePeer } from '$lib/peer';
+	import { peer, peerId, initializePeer, connections, dataConnections } from '$lib/peer';
+	import { getMediaStream } from '$lib/media';
 	import type { MediaConnection } from 'peerjs';
 	import flipcameraicon from '$lib/assets/icons/flip-camera.svg';
 	import cameraOff from '$lib/assets/icons/camera-off.svg';
@@ -9,36 +10,23 @@
 	import undo from '$lib/assets/icons/undo.svg';
 	import { goto } from '$app/navigation';
 
-	const action = $page.url.searchParams.get('action');
+	const action = $page.url.searchParams.get('action') ?? '';
 	const roomId = $page.url.searchParams.get('roomId') ?? '';
 
-	let localStream: MediaStream | undefined = $state();
+	let localStream: MediaStream | null = $state(null);
 	let remoteStreams = $state(new Map<string, MediaStream>());
-	let connections = new Map<string, MediaConnection>();
+	let mediaConnections = new Map<string, MediaConnection>();
 	let currentFacingMode: 'user' | 'environment' = 'user';
 	let isFullScreen = $state(false);
 
-	async function getMediaStream(facingMode: 'user' | 'environment') {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({
-				video: { facingMode, width: 320, height: 240, frameRate: 10 },
-				audio: { frameRate: 10 }
-			});
-			localStream = stream;
-		} catch (err) {
-			console.error('Error accessing media devices:', err);
-			// Handle error, e.g., show a message to the user
-		}
-	}
-
 	async function toggleCamera() {
 		currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-		await getMediaStream(currentFacingMode);
+		localStream = await getMediaStream(currentFacingMode);
 
 		console.log('Toggled camera. New localStream:', localStream);
 
 		// Update peers with the new camera stream
-		for (const connection of connections.values()) {
+		for (const connection of mediaConnections.values()) {
 			const videoTrack = localStream!.getVideoTracks()[0];
 			if (videoTrack) {
 				const sender = connection.peerConnection
@@ -69,7 +57,7 @@
 	}
 
 	function exitRoom() {
-		for (const connection of connections.values()) {
+		for (const connection of mediaConnections.values()) {
 			connection.close();
 		}
 		localStream!.getTracks().forEach((track) => track.stop());
@@ -90,13 +78,23 @@
 		if (currentPeer) {
 			currentPeer.on('call', (call) => {
 				console.log(`Call from ${call.peer}`);
-				call.answer(localStream);
+				call.answer(localStream!);
 				call.on('stream', (userVideoStream) => {
 					console.log(`stream from ${call.peer}`);
 					remoteStreams.set(call.peer, userVideoStream);
 					remoteStreams = new Map(remoteStreams);
 				});
-				connections.set(call.peer, call);
+				mediaConnections.set(call.peer, call);
+				const dataConnection = currentPeer.connect(call.peer);
+				dataConnections.update((conns) => conns.set(call.peer, dataConnection));
+				if (mediaConnections.size > 1 && action == 'create') {
+					Array(mediaConnections.keys).forEach((id) => {
+						dataConnection.send({
+							type: 'new',
+							payload: id
+						});
+					});
+				}
 			});
 
 			if (roomId && currentPeer.id !== roomId) {
@@ -108,7 +106,8 @@
 						remoteStreams = remoteStreams.set(roomId, userVideoStream);
 						remoteStreams = new Map(remoteStreams);
 					});
-					connections.set(roomId, call);
+					mediaConnections.set(roomId, call);
+					call.on('close', () => {});
 				}
 			}
 		}
@@ -148,7 +147,7 @@
 		<div
 			class="fixed bottom-4 left-4 h-1/4 w-1/4 overflow-hidden rounded-md border-2 border-gray-300 dark:border-gray-700"
 		>
-			<video srcObject={localStream} autoplay muted class="h-full w-full bg-black object-cover"
+			<video srcObject={localStream!} autoplay muted class="h-full w-full bg-black object-cover"
 			></video>
 		</div>
 	{/if}
