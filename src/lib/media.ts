@@ -10,7 +10,7 @@ export async function getMediaStream(facingMode: 'user' | 'environment'): Promis
                 echoCancellation: true,
                 backgroundBlur: true
             },
-            audio: { frameRate: 10 }
+            audio: { frameRate: 5, echoCancellation: true }
         });
         return stream;
     } catch (err) {

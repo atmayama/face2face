@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { peer, peerId, initializePeer, connections, dataConnections } from '$lib/peer';
+	import { PeerStateManager } from '$lib/peer_state_manager';
 	import { getMediaStream } from '$lib/media';
-	import type { MediaConnection } from 'peerjs';
+	import { isFullScreen, toggleFullScreen } from '$lib/screen';
 	import flipcameraicon from '$lib/assets/icons/flip-camera.svg';
 	import cameraOff from '$lib/assets/icons/camera-off.svg';
 	import enlarge from '$lib/assets/icons/enlarge.svg';
@@ -14,109 +14,43 @@
 	const roomId = $page.url.searchParams.get('roomId') ?? '';
 
 	let localStream: MediaStream | null = $state(null);
-	let remoteStreams = $state(new Map<string, MediaStream>());
-	let mediaConnections = new Map<string, MediaConnection>();
+	let peerStateManager: PeerStateManager | null = $state(null);
 	let currentFacingMode: 'user' | 'environment' = 'user';
-	let isFullScreen = $state(false);
+
+	let connections = $derived(peerStateManager?.connections);
 
 	async function toggleCamera() {
 		currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
 		localStream = await getMediaStream(currentFacingMode);
-
-		console.log('Toggled camera. New localStream:', localStream);
-
-		// Update peers with the new camera stream
-		for (const connection of mediaConnections.values()) {
-			const videoTrack = localStream!.getVideoTracks()[0];
-			if (videoTrack) {
-				const sender = connection.peerConnection
-					.getSenders()
-					.find((s) => s.track?.kind === 'video');
-				if (sender) {
-					sender.replaceTrack(videoTrack);
-					console.log('Replaced track for peer:', connection.peer, 'with new track:', videoTrack);
-				} else {
-					console.warn('No video sender found for peer:', connection.peer);
-				}
-			} else {
-				console.warn('No video track found in localStream after camera toggle.');
-			}
-		}
-	}
-
-	function toggleFullScreen() {
-		if (!document.fullscreenElement) {
-			document.documentElement.requestFullscreen();
-			isFullScreen = true;
-		} else {
-			if (document.exitFullscreen) {
-				document.exitFullscreen();
-				isFullScreen = false;
-			}
+		if (localStream && peerStateManager) {
+			peerStateManager.replaceStream(localStream);
 		}
 	}
 
 	function exitRoom() {
-		for (const connection of mediaConnections.values()) {
-			connection.close();
+		if (peerStateManager) {
+			const allConnections = peerStateManager.connections;
+			for (const connection of allConnections.values()) {
+				connection.data?.close();
+				connection.media?.close();
+			}
 		}
-		localStream!.getTracks().forEach((track) => track.stop());
+		localStream?.getTracks().forEach((track) => track.stop());
 		goto('/');
 	}
 
 	onMount(async () => {
-		if (action === 'create') {
-			await initializePeer(roomId);
-		} else {
-			await initializePeer();
-		}
-
-		await getMediaStream(currentFacingMode);
-		console.log('Initial localStream on mount:', localStream);
-
-		const currentPeer = $peer;
-		if (currentPeer) {
-			currentPeer.on('call', (call) => {
-				console.log(`Call from ${call.peer}`);
-				call.answer(localStream!);
-				call.on('stream', (userVideoStream) => {
-					console.log(`stream from ${call.peer}`);
-					remoteStreams.set(call.peer, userVideoStream);
-					remoteStreams = new Map(remoteStreams);
-				});
-				mediaConnections.set(call.peer, call);
-				const dataConnection = currentPeer.connect(call.peer);
-				dataConnections.update((conns) => conns.set(call.peer, dataConnection));
-				if (mediaConnections.size > 1 && action == 'create') {
-					Array(mediaConnections.keys).forEach((id) => {
-						dataConnection.send({
-							type: 'new',
-							payload: id
-						});
-					});
-				}
-			});
-
-			if (roomId && currentPeer.id !== roomId) {
-				console.log(`Calling ${roomId}`);
-				const call = currentPeer.call(roomId, localStream!);
-				if (call) {
-					call.on('stream', (userVideoStream) => {
-						console.log(`Response from ${roomId}`);
-						remoteStreams = remoteStreams.set(roomId, userVideoStream);
-						remoteStreams = new Map(remoteStreams);
-					});
-					mediaConnections.set(roomId, call);
-					call.on('close', () => {});
-				}
+		console.log('onMount');
+		localStream = await getMediaStream(currentFacingMode);
+		if (localStream) {
+			peerStateManager = new PeerStateManager(localStream);
+			if (action === 'create') {
+				await peerStateManager.initializePeer(roomId);
+			} else {
+				await peerStateManager.initializePeer();
+				peerStateManager.addConnection(roomId);
 			}
 		}
-
-		document.addEventListener('fullscreenchange', (event) => {
-			if (!document.fullscreenElement) {
-				isFullScreen = false;
-			}
-		});
 	});
 </script>
 
@@ -124,21 +58,23 @@
 	<!-- Remote Videos -->
 	<div class="flex h-full w-full items-center justify-center">
 		<div class="flex flex-row flex-wrap items-center justify-center gap-5">
-			{#if remoteStreams.size == 0}
+			{#if $connections && $connections.size == 0}
 				<span class="text-white">Welcome to Face2Face</span>
 			{/if}
 
-			{#each [...remoteStreams.entries()] as [peerId, stream]}
-				{#if stream}
-					<video
-						srcObject={stream}
-						autoplay
-						class="h-min rounded-xl border-2 border-gray-300 p-2 dark:border-gray-700"
-					>
-						<track kind="captions" />
-					</video>
-				{/if}
-			{/each}
+			{#if $connections}
+				{#each [...$connections.entries()] as [peerId, connection]}
+					{#if connection.stream}
+						<video
+							srcObject={connection.stream}
+							autoplay
+							class="h-min rounded-xl border-2 border-gray-300 p-2 dark:border-gray-700"
+						>
+							<track kind="captions" />
+						</video>
+					{/if}
+				{/each}
+			{/if}
 		</div>
 	</div>
 
@@ -147,7 +83,7 @@
 		<div
 			class="fixed bottom-4 left-4 h-1/4 w-1/4 overflow-hidden rounded-md border-2 border-gray-300 dark:border-gray-700"
 		>
-			<video srcObject={localStream!} autoplay muted class="h-full w-full bg-black object-cover"
+			<video srcObject={localStream} autoplay muted class="h-full w-full bg-black object-cover"
 			></video>
 		</div>
 	{/if}
@@ -161,7 +97,7 @@
 				<img src={cameraOff} alt="camera off" class="w-5 dark:invert" />
 			</button>
 			<button
-				class="rounded-full {isFullScreen
+				class="rounded-full {$isFullScreen
 					? 'bg-red-400'
 					: 'bg-gray-300 dark:bg-gray-500'} p-2 text-white"
 				on:click={toggleFullScreen}
