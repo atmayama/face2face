@@ -3,16 +3,17 @@
 	import { goto } from '$app/navigation';
 
 	let roomId = '';
+	let name = '';
 
 	function createRoom() {
-		if (roomId) {
-			goto(`./room?roomId=${roomId}&action=create`);
+		if (roomId && name) {
+			goto(`./room?roomId=${roomId}&action=create&name=${name}`);
 		}
 	}
 
 	function joinRoom() {
-		if (roomId) {
-			goto(`./room?roomId=${roomId}&action=join`);
+		if (roomId && name) {
+			goto(`./room?roomId=${roomId}&action=join&name=${name}`);
 		}
 	}
 </script>
@@ -20,6 +21,14 @@
 <div class="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-600">
 	<div class="w-full max-w-md space-y-6 rounded-lg bg-white p-8 shadow-md dark:bg-gray-800">
 		<div class="space-y-4">
+			<div class="flex items-center space-x-2">
+				<input
+					type="text"
+					bind:value={name}
+					class="w-full rounded-md border border-gray-300 bg-gray-200 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:ring-indigo-500 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+					placeholder="Enter Your Name"
+				/>
+			</div>
 			<div class="flex items-center space-x-2">
 				<input
 					type="text"

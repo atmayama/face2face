@@ -2,7 +2,7 @@ import { writable, get } from 'svelte/store';
 import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import { resolve } from '$app/paths';
 
-type Connection = { data: DataConnection | null; media: MediaConnection | null; stream: MediaStream | null };
+type Connection = { name: string | null, data: DataConnection | null; media: MediaConnection | null; stream: MediaStream | null };
 
 export type PeerMessage<T extends string, P> = {
     type: T;
@@ -10,10 +10,11 @@ export type PeerMessage<T extends string, P> = {
 };
 
 export type NewUserMessage = PeerMessage<'new-user', { peerId: string }>;
-export type ChatPayload = { date: string, text: string };
+export type ChatPayload = { name: string, date: string, text: string };
 export type ChatMessage = PeerMessage<'chat-message', ChatPayload>;
 
-export type AllMessages = NewUserMessage | ChatMessage;
+export type AllMessages = NewUserMessage | ChatMessage | UserInfoMessage;
+export type UserInfoMessage = PeerMessage<'user-info', { name: string }>;
 
 export class PeerStateManager {
     public peer = writable<Peer | null>(null);
@@ -22,11 +23,13 @@ export class PeerStateManager {
     public isLeader = writable<boolean>(false);
     public messages = writable<ChatPayload[]>([]);
     private mediaStream: MediaStream;
+    private name: string;
 
-    constructor(mediaStream: MediaStream) {
+    constructor(mediaStream: MediaStream, name: string) {
         this.mediaStream = mediaStream;
+        this.name = name;
         this.peer.subscribe((peer) => {
-            if (peer) {
+            if (peer?.id) {
                 this._listenForIncomingConnections(peer);
             }
         });
@@ -45,11 +48,11 @@ export class PeerStateManager {
         return new Promise((resolve, reject) => {
             newPeer.on('open', () => {
                 this.peer.set(newPeer);
+                this.peerId.set(newPeer.id);
                 resolve();
             })
             newPeer.on('error', reject)
         })
-
     }
 
     private _listenForIncomingConnections(peer: Peer) {
@@ -84,44 +87,62 @@ export class PeerStateManager {
         const isNewPeer = !get(this.connections).has(connection.peer);
 
         this.connections.update((connections) => {
-            const peerConnections = connections.get(connection.peer) || { data: null, media: null, stream: null };
+            const peerConnections = connections.get(connection.peer) || { name: null, data: null, media: null, stream: null };
             peerConnections.data = connection;
             connections.set(connection.peer, peerConnections);
             return connections;
         });
 
+        connection.on('open', () => {
+            // Send leader's name to the new user
+            const message: UserInfoMessage = { type: 'user-info', payload: { name: this.name } };
+            this.sendData(connection.peer, message);
+        })
         connection.on('close', () => {
             this.removeDataConnection(connection);
         });
         connection.on('data', (data: unknown) => {
-            this._handleIncomingData(data as AllMessages);
+            this._handleIncomingData(connection.peer, data as AllMessages);
         });
 
         if (isNewPeer && get(this.isLeader)) {
-            this._broadcastNewUser(connection.peer);
-        }
-    }
-
-    private _broadcastNewUser(newPeerId: string) {
-        const allPeers = get(this.connections);
-        const message: NewUserMessage = { type: 'new-user', payload: { peerId: newPeerId } };
-
-        for (const [peerId, connection] of allPeers.entries()) {
-            if (peerId !== newPeerId && connection.data && connection.data.open) {
-                console.log(`Broadcasting new user: ${newPeerId} to ${peerId}`);
-                this.sendData(peerId, message);
+            const allPeers = get(this.connections);
+            for (const [peerId, conn] of allPeers.entries()) {
+                if (peerId !== connection.peer && conn.name) {
+                    const message: NewUserMessage = { type: 'new-user', payload: { peerId: connection.peer } };
+                    this.sendData(peerId, message);
+                }
             }
         }
     }
 
-    private _handleIncomingData(message: AllMessages) {
+    private _handleIncomingData(peerId: string, message: AllMessages) {
         console.log('Handling incoming data:', message);
         switch (message.type) {
             case 'new-user':
-                this.addConnection(message.payload.peerId);
+                this.connections.update((connections) => {
+                    if (!connections.has(message.payload.peerId)) {
+                        this.addConnection(message.payload.peerId);
+                    }
+                    const peerConnection = connections.get(message.payload.peerId);
+                    if (peerConnection) {
+                        peerConnection.name = message.payload.name;
+                    }
+                    return connections;
+                });
                 break;
             case 'chat-message':
-                this.messages.update((messages) => [...messages, message.payload]);
+                this.messages.update((messages) => [...messages, { ...message.payload, peerId }]);
+                break;
+            case 'user-info':
+                this.connections.update((connections) => {
+                    const peerConnection = connections.get(peerId);
+                    if (peerConnection) {
+                        console.log(`Update name of ${peerId} to ${message.payload.name}`)
+                        peerConnection.name = message.payload.name;
+                    }
+                    return connections;
+                });
                 break;
             default:
                 console.warn('Unknown message type:', message.type);
@@ -130,7 +151,7 @@ export class PeerStateManager {
 
     private _addMediaConnectionToStore(connection: MediaConnection) {
         this.connections.update((connections) => {
-            const peerConnections = connections.get(connection.peer) || { data: null, media: null, stream: null };
+            const peerConnections = connections.get(connection.peer) || { name: null, data: null, media: null, stream: null };
             peerConnections.media = connection;
             connections.set(connection.peer, peerConnections);
             return connections;
@@ -172,6 +193,7 @@ export class PeerStateManager {
         const message: ChatMessage = {
             type: 'chat-message',
             payload: {
+                name: this.name,
                 date: new Date().toISOString(),
                 text: text,
             }
