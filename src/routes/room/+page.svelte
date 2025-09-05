@@ -73,6 +73,8 @@
 	});
 </script>
 
+<svelte:window on:beforeunload={exitRoom} />
+
 <div class="relative h-screen w-screen bg-gray-100 dark:bg-gray-600">
 	<!-- Remote Videos -->
 	<div class="flex h-full w-full items-center justify-center">
