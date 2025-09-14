@@ -75,37 +75,40 @@
 
 <svelte:window on:beforeunload={exitRoom} />
 
-<div class="relative h-screen w-screen bg-gray-100 dark:bg-gray-600">
+<div class="h-screen w-screen overflow-scroll bg-gray-100 dark:bg-gray-600">
 	<!-- Remote Videos -->
-	<div class="flex h-full w-full items-center justify-center">
-		<div class="flex flex-row flex-wrap items-center justify-center gap-5">
-			{#if $connections && $connections.size == 0}
-				<span class="text-white">Welcome to Face2Face</span>
-			{/if}
-
+	{#if $connections && $connections.size == 0}
+		<div class="flex h-screen w-screen items-center justify-center text-center text-white">
+			Welcome to Face2Face
+		</div>
+	{:else}
+		<div
+			class="lg: grid h-full w-full grid-cols-1 items-center justify-center gap-5 md:grid-cols-2 lg:grid-cols-3"
+		>
 			{#if $connections}
-				{#each [...$connections.entries()] as [peerId, connection]}
+				{#each [...$connections.entries()] as [peerId, connection], index}
 					{#if connection.stream}
-						<div class="relative">
+						<div
+							class="col-span-{index + 1 == $connections.size ? 4 - ($connections.size % 3) : 1}"
+						>
 							<video
 								srcObject={connection.stream}
 								autoplay
-								class="h-min rounded-xl border-2 border-gray-300 p-2 dark:border-gray-700"
+								class="aspect-video h-full w-full rounded-xl border-2 border-gray-300 p-2 dark:border-gray-700"
 							>
 								<track kind="captions" />
 							</video>
-							<div
-								class="bg-opacity-50 absolute bottom-4 left-4 rounded-md bg-black px-2 py-1 text-white"
+							<span
+								class="bg-opacity-50 relative bottom-10 left-4 rounded-md bg-black px-2 py-1 text-white"
 							>
 								{connection.name}
-							</div>
+							</span>
 						</div>
 					{/if}
 				{/each}
 			{/if}
 		</div>
-	</div>
-
+	{/if}
 	<!-- Self Video -->
 	{#if localStream}
 		<div
